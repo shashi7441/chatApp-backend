@@ -1,15 +1,15 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 const { users } = require("../../models");
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import otpGenerator from "otp-generator";
+import { ApiError } from "../services/error";
 import sequelize from "sequelize";
 
 import { sendMail } from "../services/userService";
-import { userSignupValidation } from "../middleware/userValidation";
 dotenv.config();
-export let signup = async (req: Request, res: Response) => {
+export let signup = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const createOtp = await otpGenerator.generate(6, {
       upperCaseAlphabets: false,
@@ -17,7 +17,6 @@ export let signup = async (req: Request, res: Response) => {
       digits: true,
       lowerCaseAlphabets: false,
     });
-
     const secretKey: any = process.env.SECRET_KEY;
     let {
       fullName,
@@ -45,7 +44,6 @@ export let signup = async (req: Request, res: Response) => {
       const findCreateData = await users.findOne({
         where: { email: emailTrim },
       });
-
       const updateData = await users.update(
         { otp: createOtp },
         {
@@ -60,9 +58,7 @@ export let signup = async (req: Request, res: Response) => {
         },
       });
       const result: number = originalData.dataValues.otp;
-
       await sendMail(req, res, result);
-
       const databaseId = findCreateData.dataValues.id;
       const databasePassword = findCreateData.dataValues.password;
       const passwordMatch = await bcrypt.compare(
@@ -71,16 +67,10 @@ export let signup = async (req: Request, res: Response) => {
       );
       const values = findCreateData.dataValues.isVerified;
       if (!passwordMatch) {
-        return res.json({
-          statusCode: 400,
-          message: "Invalid credential",
-        });
+        return next(new ApiError("Invalid credential", 400));
       }
       if (values === false) {
-        return res.json({
-          statusCode: 400,
-          message: "please verify by email ",
-        });
+        return next(new ApiError("please verify by email ", 400));
       }
       if (values === true) {
         if (passwordMatch) {
@@ -88,7 +78,7 @@ export let signup = async (req: Request, res: Response) => {
             expiresIn: "24h",
           });
           return res.json({
-            statusCode: 400,
+            statusCode: 200,
             message: "login successfully",
             data: jwtToken,
           });
@@ -96,12 +86,10 @@ export let signup = async (req: Request, res: Response) => {
       }
     } else {
       const myName = findData.dataValues.fullName;
-
       const loginPassword = findData.dataValues.password;
       const loginId = findData.dataValues.id;
       const verified = findData.dataValues.isVerified;
       const passwordMatch = await bcrypt.compare(passwordTrim, loginPassword);
-
       const updateData = await users.update(
         { otp: createOtp },
         {
@@ -110,7 +98,6 @@ export let signup = async (req: Request, res: Response) => {
           },
         }
       );
-
       const originalData = await users.findOne({
         where: {
           email: emailTrim,
@@ -118,25 +105,14 @@ export let signup = async (req: Request, res: Response) => {
       });
       const result: number = originalData.dataValues.otp;
       await sendMail(req, res, result);
-
       if (!passwordMatch) {
-        return res.json({
-          statusCode: 400,
-          message: "Invalid credential",
-        });
+        return next(new ApiError("Invalid credential", 400));
       }
       if (myName != fullNameTrim) {
-        return res.json({
-          statusCode: 400,
-          message: "invalid credential",
-        });
+        return next(new ApiError("invalid credential", 400));
       }
-
       if (verified === false) {
-        return res.json({
-          statusCode: 400,
-          message: "please verify email",
-        });
+        return next(new ApiError("please verify email", 400));
       }
       if (verified === true) {
         if (passwordMatch) {
@@ -144,7 +120,7 @@ export let signup = async (req: Request, res: Response) => {
             expiresIn: "24h",
           });
           return res.json({
-            statusCode: 400,
+            statusCode: 200,
             message: "login successfully",
             data: jwtToken,
           });
@@ -152,16 +128,15 @@ export let signup = async (req: Request, res: Response) => {
       }
     }
   } catch (e: any) {
-    console.log(e);
-
-    return res.status(400).json({
-      statusCode: 400,
-      message: e.message,
-    });
+return next(new ApiError(e.message, 400));
   }
 };
 
-export let searchFriend = async (req: Request, res: Response) => {
+export let searchFriend = async (
+  req: any,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const search: any = req.query.search;
 
@@ -173,13 +148,14 @@ export let searchFriend = async (req: Request, res: Response) => {
           fullName: {
             [Op.iRegexp]: `${originalSearch}`,
           },
+          isVerified: true,
+          id: {
+            [Op.ne]: [req.id],
+          },
         },
       });
       if (userData.length == 0) {
-        return res.json({
-          statusCode: 404,
-          message: "data not found",
-        });
+        return next(new ApiError("data not found", 400));
       }
 
       return res.json({
@@ -194,11 +170,6 @@ export let searchFriend = async (req: Request, res: Response) => {
       });
     }
   } catch (e: any) {
-    console.log(e);
-
-    return res.json({
-      statusCode: 400,
-      message: e.message,
-    });
+    return next(new ApiError(e.message, 400));
   }
 };

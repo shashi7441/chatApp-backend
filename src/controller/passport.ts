@@ -11,7 +11,13 @@ passport.use(
       callbackURL: process.env.CALLBACK_URL,
       passReqToCallback: true,
     },
-    function (request, accessToken, refreshToken, profile: any, done: any) {
+    function (
+      request: any,
+      accessToken: any,
+      refreshToken: any,
+      profile: any,
+      done: any
+    ) {
       return done(null, profile);
     }
   )

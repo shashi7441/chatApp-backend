@@ -17,3 +17,5 @@ friendRequestRoutes.patch(
 friendRequestRoutes.post("/sendRequest/:id", tokenVarify, sendFriendRequest);
 friendRequestRoutes.patch("/reject/:id", tokenVarify, friendRequestReject);
 friendRequestRoutes.get("/friendrequest", tokenVarify, seeFriendRequest);
+
+

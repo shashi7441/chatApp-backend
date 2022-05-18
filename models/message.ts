@@ -13,9 +13,9 @@ module.exports = (sequelize, DataTypes) => {
   }
   message.init(
     {
-      conversationId: DataTypes.STRING,
+      conversationId: DataTypes.INTEGER,
       messages: DataTypes.ARRAY(DataTypes.STRING),
-      isDeleted: DataTypes.BOOLEAN,
+      isBlocked: DataTypes.BOOLEAN,
     },
     {
       sequelize,

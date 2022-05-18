@@ -1,17 +1,23 @@
 const { conversation, users } = require("../../models/");
-import sequelize from "sequelize";
-import { Request, Response } from "express";
+import { Op } from "sequelize";
+import { Request, Response, NextFunction } from "express";
+import { ApiError } from "../services/error";
 
-export let sendFriendRequest = async (req: any, res: Response) => {
+// interface error {
+//   message: String;
+// }
+
+export let sendFriendRequest = async (
+  req: any,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
 
     if (Number.isNaN(parseInt(numberId)) === true) {
-      return res.json({
-        statusCode: 400,
-        message: "id type is string",
-      });
+      return next(new ApiError("id type is string", 400));
     }
 
     const recieverData: any = await users.findOne({
@@ -19,24 +25,23 @@ export let sendFriendRequest = async (req: any, res: Response) => {
         id: numberId,
       },
     });
-    console.log(recieverData);
+
+    if (numberId == req.id) {
+      return next(new ApiError("you can not send request", 400));
+    }
 
     if (!recieverData) {
-      return res.json({
-        statusCode: 404,
-        message: "data not found",
-      });
+      return next(new ApiError("no user found", 400));
     } else {
       const cheackFriendRequest = await conversation.findOne({
         where: {
-          recieverId: numberId,
+          senderId: { [Op.or]: [req.id, numberId] },
+          recieverId: { [Op.or]: [req.id, numberId] },
         },
       });
+
       if (cheackFriendRequest) {
-        return res.json({
-          statusCode: 400,
-          message: "already send friend request",
-        });
+        return next(new ApiError("already send friend request", 400));
       }
 
       const createData = await conversation.create({
@@ -50,23 +55,24 @@ export let sendFriendRequest = async (req: any, res: Response) => {
       });
     }
   } catch (e: any) {
-    return res.json({
-      statusCode: 400,
-      message: e.message,
-    });
+    return next(new ApiError(e.message, 400));
   }
 };
 
-export let friendRequestAccept = async (req: any, res: Response) => {
+export let friendRequestAccept = async (
+  req: any,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
 
     if (Number.isNaN(parseInt(numberId)) === true) {
-      return res.json({
-        statusCode: 400,
-        message: "id type is string",
-      });
+      return next(new ApiError("id type is string", 400));
+    }
+    if (req.id == numberId) {
+      return next(new ApiError("can not accept request", 404));
     }
 
     const recieverData: any = await users.findOne({
@@ -74,59 +80,55 @@ export let friendRequestAccept = async (req: any, res: Response) => {
         id: numberId,
       },
     });
-
     if (!recieverData) {
-      return res.json({
-        statusCode: 404,
-        message: "data not found",
-      });
+      return next(new ApiError("no user found", 404));
     } else {
       const cheackFriendRequest = await conversation.findOne({
         where: {
-          senderId: numberId,
-          recieverId: req.id,
-          isAccepted: true,
+          senderId: { [Op.or]: [req.id, numberId] },
+          recieverId: { [Op.or]: [req.id, numberId] },
         },
       });
-      if (cheackFriendRequest) {
-        return res.json({
-          statusCode: 400,
-          message: "already accepted",
-        });
+      if (!cheackFriendRequest) {
+        return next(new ApiError("no conversation found", 400));
       }
-
-      const updateData = await conversation.update(
-        { isAccepted: true, isRejected: false },
-        {
-          where: {
-            senderId: numberId,
-            recieverId: req.id,
-          },
+      if (cheackFriendRequest) {
+        const value = cheackFriendRequest.dataValues.isAccepted;
+        if (value == true) {
+          return next(new ApiError("already friend request accepted", 400));
         }
-      );
-      return res.json({
-        statusCode: 201,
-        message: "friend request is accepted",
-      });
+
+        const updateData = await conversation.update(
+          { isAccepted: true, isRejected: false },
+          {
+            where: {
+              senderId: numberId,
+              recieverId: req.id,
+            },
+          }
+        );
+        return res.json({
+          statusCode: 201,
+          message: "friend request is accepted",
+        });
+      }
     }
   } catch (e: any) {
-    return res.json({
-      statusCode: 400,
-      message: e.message,
-    });
+    return next(new ApiError(e.message, 400));
   }
 };
 
-export let friendRequestReject = async (req: any, res: Response) => {
+export let friendRequestReject = async (
+  req: any,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
 
     if (Number.isNaN(parseInt(numberId)) === true) {
-      return res.json({
-        statusCode: 400,
-        message: "id type is string",
-      });
+      return next(new ApiError("id type is string", 400));
     }
 
     const recieverData: any = await users.findOne({
@@ -135,67 +137,70 @@ export let friendRequestReject = async (req: any, res: Response) => {
       },
     });
 
+    if (req.id == numberId) {
+      return next(new ApiError("can not reject request ", 404));
+    }
+
     if (!recieverData) {
-      return res.json({
-        statusCode: 404,
-        message: "data not found",
-      });
+      return next(new ApiError("no user found", 404));
     } else {
       const cheackFriendRequest = await conversation.findOne({
         where: {
-          recieverId: req.id,
-          senderId: numberId,
-          isAccepted: false,
+          senderId: { [Op.or]: [req.id, numberId] },
+          recieverId: { [Op.or]: [req.id, numberId] },
         },
       });
-      if (cheackFriendRequest) {
-        return res.json({
-          statusCode: 400,
-          message: "already reject request",
-        });
+      if (!cheackFriendRequest) {
+        return next(new ApiError("no conversation found ", 400));
       }
-
-      const DeleteData = await conversation.destroy({
-        where: {
-          senderId: numberId,
-          recieverId: req.id,
-        },
-      });
-      return res.json({
-        statusCode: 201,
-        message: "friend request is rejected",
-      });
+      if (cheackFriendRequest) {
+        const value = cheackFriendRequest.dataValues.isRejected;
+        if (value === true) {
+          return next(new ApiError("already reject request", 400));
+        } else {
+          const DeleteData = await conversation.destroy({
+            where: {
+              senderId: numberId,
+              recieverId: req.id,
+            },
+          });
+          return res.json({
+            statusCode: 201,
+            message: "friend request is rejected",
+          });
+        }
+      }
     }
   } catch (e: any) {
-    return res.json({
-      statusCode: 400,
-      message: e.message,
-    });
+    return next(new ApiError(e.message, 400));
   }
 };
 
-export let seeFriendRequest = async (req: any, res: Response) => {
+export let seeFriendRequest = async (
+  req: any,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const id = req.id;
 
     const userData = await conversation.findAll({
       where: {
         recieverId: id,
+        isAccepted: false,
       },
-      attributes: ["recieverId"],
+      attributes: ["senderId"],
       include: [
         {
           model: users,
           attributes: ["email", "fullName", "id"],
-          as: "users",
+          as: "sender",
         },
       ],
     });
+
     if (userData.length == 0) {
-      return res.json({
-        statusCode: 404,
-        message: "data not found",
-      });
+      return next(new ApiError("no  friend  request is found", 404));
     }
 
     return res.json({
@@ -203,9 +208,8 @@ export let seeFriendRequest = async (req: any, res: Response) => {
       data: userData,
     });
   } catch (e: any) {
-    return res.json({
-      statusCode: 400,
-      message: e.message,
-    });
+
+    // if (e instanceof Error) = e.message
+    return next(new ApiError(e, 404));
   }
 };

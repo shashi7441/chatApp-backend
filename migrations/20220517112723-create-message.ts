@@ -9,15 +9,14 @@ module.exports = {
         type: Sequelize.INTEGER,
       },
       conversationId: {
-        type: Sequelize.STRING,
+        type: Sequelize.INTEGER,
       },
       messages: {
-        type: Sequelize.ARRAY(Sequelize.TEXT),
+        type: Sequelize.ARRAY(Sequelize.STRING),
       },
-      
-      isDeleted: {
+      isBlocked: {
         type: Sequelize.BOOLEAN,
-        defaultValue: true,
+        defaultValue: false,
       },
       createdAt: {
         allowNull: false,

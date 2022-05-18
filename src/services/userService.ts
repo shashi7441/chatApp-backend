@@ -64,7 +64,7 @@ export let sendMail = async (req: Request, res: Response, result) => {
     };
     transporter.sendMail(mailOptions, function (error: any, info: any) {
       if (error) {
-        console.log(">>>>>>>>>>", error);
+        console.log(">>>>>>>>>>error", error);
       } else {
         console.log("Email sent: " + info.response);
       }
@@ -93,6 +93,9 @@ export let userVerifiedEmail = async (req: Request, res: Response) => {
         message: "otp not found",
       });
     }
+    console.log(otp);
+    console.log(findData);
+
     if (!findData) {
       return res.json({
         statusCode: 400,
@@ -101,6 +104,7 @@ export let userVerifiedEmail = async (req: Request, res: Response) => {
     }
     const id = findData.dataValues.id;
     const finalResult = findData.dataValues.otp;
+
     if (finalResult != otp) {
       return res.json({
         statusCode: 400,
@@ -140,6 +144,24 @@ export let userVerifiedEmail = async (req: Request, res: Response) => {
     return res.json({
       success: false,
       statusCode: 400,
+      message: e.message,
+    });
+  }
+};
+
+export let pageNotFound = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    return res.json({
+      statusCode: 404,
+      message: "page not found ",
+    });
+  } catch (e: any) {
+    return res.json({
+      statusCode: 500,
       message: e.message,
     });
   }
