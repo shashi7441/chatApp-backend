@@ -14,10 +14,14 @@ module.exports = (sequelize, DataTypes) => {
         as: "friendRequest",
         foreignKey: "senderId",
       });
-      // users.hasMany(models.conversation, {
-      //   as: "friendRequest",
-      //   foreignKey: "recieverId",
-      // });
+      users.hasMany(models.messages, {
+        as: "sender",
+        foreignKey: "from",
+      });
+      users.hasMany(models.messages, {
+        as: "reciever",
+        foreignKey: "to",
+      });
     }
   }
   users.init(

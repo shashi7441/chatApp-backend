@@ -11,12 +11,14 @@ module.exports = {
       conversationId: {
         type: Sequelize.INTEGER,
       },
-      messages: {
-        type: Sequelize.ARRAY(Sequelize.STRING),
+      to: {
+        type: Sequelize.INTEGER,
       },
-      isBlocked: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false,
+      from: {
+        type: Sequelize.INTEGER,
+      },
+      message: {
+        type: Sequelize.STRING,
       },
       createdAt: {
         allowNull: false,
@@ -32,3 +34,5 @@ module.exports = {
     await queryInterface.dropTable("messages");
   },
 };
+
+

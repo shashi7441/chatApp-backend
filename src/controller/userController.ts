@@ -3,31 +3,22 @@ const { users } = require("../../models");
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
-import otpGenerator from "otp-generator";
 import { ApiError } from "../services/error";
 import sequelize from "sequelize";
-
+import { html, createOtp } from "../services/otpMailTemplate";
 import { sendMail } from "../services/userService";
 dotenv.config();
+
 export let signup = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const createOtp = await otpGenerator.generate(6, {
-      upperCaseAlphabets: false,
-      specialChars: false,
-      digits: true,
-      lowerCaseAlphabets: false,
-    });
     const secretKey: any = process.env.SECRET_KEY;
     let {
-      fullName,
       email,
       otp,
       password,
-    }: { fullName: string; email: string; otp: number; password: string } =
-      req.body;
+    }: { email: string; otp: number; password: string } = req.body;
     const emailTrim = email.trim();
     let passwordTrim = password.trim();
-    let fullNameTrim = fullName.trim();
     const salt: any = await bcrypt.genSalt(10);
     const hash: string = await bcrypt.hash(passwordTrim, salt);
     const findData = await users.findOne({
@@ -36,6 +27,20 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
       },
     });
     if (!findData) {
+      const { fullName }: { fullName: string } = req.body;
+      if (!fullName) {
+        return res.json({
+          statusCode: 422,
+          message: "fullName is required",
+        });
+      }
+      if (fullName.length < 3) {
+        return res.json({
+          statusCode: 400,
+          message: "charcter lenght should be 3",
+        });
+      }
+      let fullNameTrim: string = fullName.trim();
       const createData = await users.create({
         fullName: fullNameTrim,
         email: emailTrim,
@@ -58,7 +63,7 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
         },
       });
       const result: number = originalData.dataValues.otp;
-      await sendMail(req, res, result);
+      await sendMail(req, res, html);
       const databaseId = findCreateData.dataValues.id;
       const databasePassword = findCreateData.dataValues.password;
       const passwordMatch = await bcrypt.compare(
@@ -85,7 +90,6 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
         }
       }
     } else {
-      const myName = findData.dataValues.fullName;
       const loginPassword = findData.dataValues.password;
       const loginId = findData.dataValues.id;
       const verified = findData.dataValues.isVerified;
@@ -104,12 +108,9 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
         },
       });
       const result: number = originalData.dataValues.otp;
-      await sendMail(req, res, result);
+      await sendMail(req, res, html);
       if (!passwordMatch) {
         return next(new ApiError("Invalid credential", 400));
-      }
-      if (myName != fullNameTrim) {
-        return next(new ApiError("invalid credential", 400));
       }
       if (verified === false) {
         return next(new ApiError("please verify email", 400));
@@ -128,7 +129,9 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
       }
     }
   } catch (e: any) {
-return next(new ApiError(e.message, 400));
+    console.log(e);
+
+    return next(new ApiError(e.message, 400));
   }
 };
 
@@ -143,17 +146,21 @@ export let searchFriend = async (
     if (search) {
       const originalSearch = search.replace(/[' "]+/g, "");
       const Op = sequelize.Op;
-      const userData = await users.findAll({
-        where: {
-          fullName: {
-            [Op.iRegexp]: `${originalSearch}`,
-          },
-          isVerified: true,
-          id: {
-            [Op.ne]: [req.id],
+      const userData = await users.findAll(
+        {
+          where: {
+            fullName: {
+              [Op.iRegexp]: `${originalSearch}`,
+            },
+            isVerified: true,
+
+            id: {
+              [Op.ne]: [req.id],
+            },
           },
         },
-      });
+        { attributes: ["email", "fullName", "id"] }
+      );
       if (userData.length == 0) {
         return next(new ApiError("data not found", 400));
       }
@@ -163,7 +170,9 @@ export let searchFriend = async (
         data: userData,
       });
     } else {
-      const userData = await users.findAll({});
+      const userData = await users.findAll({
+        attributes: ["email", "fullName", "id"],
+      });
       return res.json({
         statusCode: 200,
         data: userData,

@@ -46,7 +46,7 @@ export let tokenVarify = async (
   }
 };
 
-export let sendMail = async (req: Request, res: Response, result) => {
+export let sendMail = async (req: Request, res: Response, html: any) => {
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -59,8 +59,7 @@ export let sendMail = async (req: Request, res: Response, result) => {
       from: process.env.MY_MAIL,
       to: req.body.email,
       subject: "Verify your mail",
-      html: `<a href="http://localhost:8000/api/auth/user/verifyEmail/${result}"> verify otp </a>`,
-      text: `Hey,it's our link to veriy the account and will going to expire in 10 mins `,
+      html: html,
     };
     transporter.sendMail(mailOptions, function (error: any, info: any) {
       if (error) {
@@ -80,32 +79,25 @@ export let sendMail = async (req: Request, res: Response, result) => {
 export let userVerifiedEmail = async (req: Request, res: Response) => {
   try {
     const secretKey: any = process.env.SECRET_KEY;
-    const otp = req.params.otp;
-    const otpNumber = parseInt(otp);
+    let { email, otp } = req.body;
+    let emailTrim = email.trim();
+    let otpTrim = otp.trim();
+    let otpNumber = parseInt(otpTrim) 
     const findData = await users.findOne({
       where: {
-        otp: otpNumber,
+        email: emailTrim,
       },
     });
-    if (!otp) {
-      return res.json({
-        statusCode: 400,
-        message: "otp not found",
-      });
-    }
-    console.log(otp);
-    console.log(findData);
-
     if (!findData) {
       return res.json({
-        statusCode: 400,
+        statusCode: 404,
         message: "user not found",
       });
     }
     const id = findData.dataValues.id;
     const finalResult = findData.dataValues.otp;
 
-    if (finalResult != otp) {
+    if (finalResult != otpNumber) {
       return res.json({
         statusCode: 400,
         message: "otp are not match",
@@ -123,7 +115,6 @@ export let userVerifiedEmail = async (req: Request, res: Response) => {
         data: jwtToken,
       });
     }
-
     if (values === false) {
       const update = await users.update(
         { isVerified: true },

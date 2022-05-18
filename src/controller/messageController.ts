@@ -1,13 +1,9 @@
 const { messages, conversation, users } = require("../../models/");
-
-
-
-
 import sequelize, { Op, Sequelize } from "sequelize";
 import crypto from "crypto";
-
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "../services/error";
+
 export let sendMessage = async (
   req: any,
   res: Response,
@@ -21,7 +17,6 @@ export let sendMessage = async (
     if (Number.isNaN(parseInt(numberId)) === true) {
       return next(new ApiError("id type is string", 400));
     }
-    const randomValue = crypto.randomBytes(2).toString("hex");
     if (message.length == 0) {
       return res.json({
         statusCode: 400,
@@ -30,21 +25,27 @@ export let sendMessage = async (
     }
     const messageTrim: string = message.trim();
 
-    const cheackFriendRequest = await conversation.findOne({
+    const cheackFriend = await conversation.findOne({
       where: {
         id: numberId,
-        isAccepted: true,
+        [Op.or]: [
+          {
+            senderId: req.id,
+          },
+          {
+            recieverId: req.id,
+          },
+        ],
       },
     });
-
-    if (!cheackFriendRequest) {
+    if (!cheackFriend) {
       return next(new ApiError("you are not friend", 404));
     }
 
     const cheacksender = await conversation.findOne({
       where: {
+        id: numberId,
         senderId: req.id,
-        isAccepted: true,
       },
       include: [
         {
@@ -57,8 +58,8 @@ export let sendMessage = async (
 
     const cheackReciever = await conversation.findOne({
       where: {
+        id: numberId,
         recieverId: req.id,
-        isAccepted: true,
       },
       include: [
         {
@@ -69,85 +70,67 @@ export let sendMessage = async (
       ],
     });
 
-    const messageData = await messages.findOne({
-      where: {
-        conversationId: numberId,
-      },
-    });
-    if (messageData) {
-      const blockValue = messageData.dataValues.isBlocked;
-      if (blockValue === true) {
+    // console.log(cheacksender);
+    // console.log(cheackReciever);
+
+    if (cheacksender) {
+      const value = cheacksender.dataValues.state;
+      if (value === "blocked") {
         return res.json({
           statusCode: 400,
-          message: "account is blocked you can not  send message",
+          message: "blocked user can not send request",
+        });
+      }
+      if (value === "pending") {
+        return res.json({
+          statusCode: 400,
+          message: "you are not friend",
+        });
+      }
+      if (value === "accepted") {
+        await messages.create({
+          to: cheacksender.dataValues.recieverId,
+          from: cheacksender.dataValues.senderId,
+          conversationId: numberId,
+          message: messageTrim,
+          state: "unedited",
+        });
+        return res.json({
+          statusCode: 200,
+          message: "message send successfully",
         });
       }
     }
-    if (cheacksender) {
-      const senderName = cheacksender.sender.dataValues.fullName;
-      const senderData = `${randomValue}-${senderName}:${messageTrim}`;
-      if (!messageData) {
-        const createData = await messages.create({
-          messages: [senderData],
-          conversationId: numberId,
-        });
-        return res.json({
-          statusCode: 200,
-          message: "message send successfully",
-        });
-      } else {
-        const value = messageData.dataValues.messages;
-        const data = value.push(`${randomValue}-${senderName}:${messageTrim}`);
-        const updateData = await messages.update(
-          {
-            messages: [data],
-          },
-          {
-            where: {
-              conversationId: numberId,
-            },
-          }
-        );
-        return res.json({
-          statusCode: 200,
-          message: "message send successfully",
-        });
-      }
-    } else if (cheackReciever) {
-      const recieverName = cheackReciever.reciever.dataValues.fullName;
-      const recieverData = `${randomValue}-${recieverName}:${messageTrim}`;
-      if (!messageData) {
-        const createData = await messages.create({
-          messages: [recieverData],
-          conversationId: numberId,
-        });
-        return res.json({
-          statusCode: 200,
-          message: "message send successfully",
-        });
-      } else {
-        const value = messageData.dataValues.messages;
 
-        const data = value.push(
-          `${randomValue}-${recieverName}:${messageTrim}`
-        );
-        const updateData = await messages.update(
-          {
-            messages: value,
-          },
-          {
-            where: {
-              conversationId: numberId,
-            },
-          }
-        );
+    if (cheackReciever) {
+      const value = cheackReciever.dataValues.state;
+      if (value === "blocked") {
         return res.json({
-          statusCode: 200,
-          message: "message send successfully",
+          statusCode: 400,
+          message: "blocked user can not send request",
         });
       }
+      if (value === "pending") {
+        return res.json({
+          statusCode: 400,
+          message: "you are not friend",
+        });
+      }
+      await messages.create({
+        to: cheackReciever.dataValues.senderId,
+        from: cheackReciever.dataValues.recieverId,
+        conversationId: numberId,
+        state: "unedited",
+        message: messageTrim,
+      });
+      return res.json({
+        statusCode: 200,
+        message: "message send successfully",
+      });
     }
   } catch (e: any) {
+    console.log("dddd", e);
+
     return next(new ApiError(e.message, 404));
   }
 };
@@ -164,42 +147,43 @@ export let seeMessages = async (
     if (Number.isNaN(parseInt(numberId)) === true) {
       return next(new ApiError("id type is string", 404));
     }
-    const conversationData = await conversation.findOne({
+    const messageData = await messages.findAll({
       where: {
+        conversationId: numberId,
         [Op.or]: [
           {
-            senderId: req.id,
+            to: req.id,
           },
           {
-            recieverId: req.id,
+            from: req.id,
           },
         ],
       },
+      include: [
+        {
+          model: users,
+          as: "reciever",
+          attributes: ["fullName", "id"],
+        },
+        {
+          model: users,
+          as: "sender",
+          attributes: ["fullName", "id"],
+        },
+      ],
     });
-    const messageData = await messages.findOne({
-      where: {
-        conversationId: numberId,
-      },
-    });
-    if (!conversationData) {
-      return next(new ApiError("invalid credential", 404));
-    }
+
     if (!messageData) {
-      return next(new ApiError("data not found", 404));
+      return res.json({
+        statusCode: 200,
+        message: "no chat found",
+      });
     }
     if (messageData) {
-      const data = messageData.dataValues.messages;
-      const filterValue = data.map((element) => {
-        const filterElement = element.split("-");
-        return filterElement[1];
+      return res.json({
+        statusCode: 200,
+        messages: messageData,
       });
-      if (conversationData) {
-        return res.json({
-          statusCode: 200,
-          messages: filterValue,
-          data: messageData,
-        });
-      }
     }
   } catch (e: any) {
     return next(new ApiError(e.message, 404));
@@ -214,160 +198,42 @@ export let deleteChats = async (
   try {
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
-    const filterId = numberId.toString().toLowerCase();
-    if (filterId.length != 4) {
-      return res.json({
-        messages: "id length should be 4",
-      });
-    }
-    const { conversationId, ...other } = req.query;
-    if (Object.entries(other).length != 0) {
-      return res.json({
-        statusCode: 400,
-        message: "wrong Field",
-      });
-    }
-
-    if (!conversationId) {
-      return res.json({
-        statusCode: 400,
-        message: "conversation id is required",
-      });
-    }
-
-    const conversationData = await conversation.findOne({
-      where: {
-        id: conversationId,
-        [Op.or]: [
-          {
-            senderId: req.id,
-          },
-          {
-            recieverId: req.id,
-          },
-        ],
-      },
-    });
-    if (!conversation) {
-      return res.json({
-        statusCode: 404,
-        message: "you are not friend",
-      });
-    }
-
-    if (conversation) {
-      const messageData: any = await messages.findOne({
-        where: {
-          conversationId: conversationData.dataValues.id,
-        },
-      });
-      const messsagesIterator = messageData.dataValues.messages;
-      let result = messsagesIterator.find((element: any) => {
-        if (element.includes(filterId)) {
-          return true;
-        }
-      });
-
-      if (!result) {
-        return res.json({
-          statusCode: 404,
-          message: "no chat found",
-        });
-      }
-
-      if (result) {
-        const arrayIndex = messsagesIterator.indexOf(result);
-        let result2 = messsagesIterator.splice(arrayIndex, 1);
-        const updateData = await messages.update(
-          { messages: messsagesIterator },
-          {
-            where: {
-              conversationId: conversationData.dataValues.id,
-            },
-          }
-        );
-        return res.json({
-          statusCode: 200,
-          message: "chat deleted successfully",
-        });
-      }
-    }
-  } catch (e: any) {
-    return next(new ApiError(e.message, 400));
-  }
-};
-
-export let blockMessage = async (
-  req: any,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const id = req.params.id;
-    const numberId: any = id.replace(/[' "]+/g, "");
     if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 400));
+      return next(new ApiError("id type is string", 404));
     }
     const messageData = await messages.findOne({
       where: {
-        conversationId: numberId,
-      },
-    });
-
-    const conversationData = await conversation.findOne({
-      where: {
+        id: numberId,
         [Op.or]: [
           {
-            senderId: req.id,
+            to: req.id,
           },
           {
-            recieverId: req.id,
+            from: req.id,
           },
         ],
-        isAccepted: true,
       },
     });
     if (!messageData) {
-      return next(new ApiError("no message found", 400));
-    }
-    if (!conversationData) {
-      return next(new ApiError("no message found", 400));
+      return res.json({
+        statusCode: 404,
+        messages: "no chat found ",
+      });
     }
     if (messageData) {
-      let value = messageData.isBlocked;
-      if (value === false) {
-        const updateData = await messages.update(
-          { isBlocked: true },
-          {
-            where: {
-              conversationId: numberId,
-            },
-          }
-        );
-        return res.json({
-          statusCode: 200,
-          message: "account is Blocked",
-        });
-      } else {
-        const updateData = await messages.update(
-          { isBlocked: false },
-          {
-            where: {
-              conversationId: numberId,
-            },
-          }
-        );
-        return res.json({
-          statusCode: 200,
-          message: "account is un-Blocked",
-        });
-      }
+      const conversationId = messageData.dataValues.conversationId;
+      const deleteChat = await messages.destroy({
+        where: {
+          conversationId: conversationId,
+        },
+      });
+      return res.json({
+        statusCode: 200,
+        message: "chat deleted successfully",
+      });
     }
   } catch (e: any) {
-    return res.json({
-      statusCode: 400,
-      message: e.message,
-    });
+    return next(new ApiError(e.message, 400));
   }
 };
 
@@ -377,39 +243,13 @@ export let deleteAllChat = async (
   next: NextFunction
 ) => {
   try {
-    const numberId = req.params.id;
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 400));
-    }
-    const conversationData = await conversation.findOne({
+    let messageData = await messages.findAll({
       where: {
-        id: numberId,
-
-        [Op.or]: [
-          {
-            senderId: req.id,
-          },
-          {
-            recieverId: req.id,
-          },
-        ],
+        from: req.id,
       },
     });
 
-    if (!conversationData) {
-      return res.json({
-        statusCode: 400,
-        message: "you are not friend",
-      });
-    }
-
-    let messageData = await messages.findOne({
-      where: {
-        conversationId: numberId,
-      },
-    });
-
-    if (!messageData) {
+    if (messageData.length == 0) {
       return res.json({
         statusCode: "no chat found",
       });
@@ -423,14 +263,11 @@ export let deleteAllChat = async (
           message: "chats already deleted",
         });
       }
-      const deleteAllChat = await messages.update(
-        { messages: [] },
-        {
-          where: {
-            conversationId: numberId,
-          },
-        }
-      );
+      const deleteAllChat = await messages.destroy({
+        where: {
+          from: req.id,
+        },
+      });
       return res.json({
         statusCode: 400,
         messages: "all chat deleted successfully",
@@ -444,8 +281,74 @@ export let deleteAllChat = async (
   }
 };
 
-export let searchMessages = async (req: Request, res: Response) => {
+export let editmessage = async (
+  req: any,
+  res: Response,
+  next: NextFunction
+) => {
   try {
+    const id = req.params.id;
+    const numberId: any = id.replace(/[' "]+/g, "");
+    if (Number.isNaN(parseInt(numberId)) === true) {
+      return next(new ApiError("id type is string", 404));
+    }
+    let { message }: { message: string } = req.body;
+    if (!message) {
+      return res.json({
+        statusCode: 400,
+        message: "message is required",
+      });
+    }
+    if (message.length == 0) {
+      return res.json({
+        statusCode: 400,
+        message: "message not be empty",
+      });
+    }
+    const messageTrim: string = message.trim();
+
+    const messageData = await messages.findOne({
+      where: {
+        id: numberId,
+        [Op.or]: [
+          {
+            to: req.id,
+          },
+          {
+            from: req.id,
+          },
+        ],
+      },
+    });
+    if (!messageData) {
+      return res.json({
+        statusCode: 400,
+        message: "no chat found",
+      });
+    }
+    const messageId = messageData.from;
+    if (messageId != req.id) {
+      return res.json({
+        statusCode: 400,
+        message: "you can not edit message",
+      });
+    } else {
+      await messages.update(
+        {
+          message: messageTrim,
+          state: "edited",
+        },
+        {
+          where: {
+            from: req.id,
+          },
+        }
+      );
+      return res.json({
+        statusCode: 200,
+        message: "message edited successfully",
+      });
+    }
   } catch (e: any) {
     return res.json({
       statusCode: 400,

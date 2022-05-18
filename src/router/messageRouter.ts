@@ -6,9 +6,9 @@ import { mesageValidation } from "../middleware/messageValidation";
 import {
   sendMessage,
   seeMessages,
-  blockMessage,
   deleteChats,
   deleteAllChat,
+ editmessage
 } from "../controller/messageController";
 messageRoutes.post(
   "/conversation/message/:id",
@@ -19,9 +19,9 @@ messageRoutes.post(
 
 messageRoutes.get("/conversation/message/:id", tokenVarify, seeMessages);
 
-messageRoutes.patch("/conversation/message/:id", tokenVarify, blockMessage);
-
 messageRoutes.delete("/conversation/message/:id", tokenVarify, deleteChats);
+messageRoutes.put("/conversation/message/edit/:id", tokenVarify,editmessage )
+
 
 messageRoutes.delete(
   "/conversation/message/allchat/:id",

@@ -1,26 +1,35 @@
 "use strict";
 import { Model } from "sequelize";
 module.exports = (sequelize, DataTypes) => {
-  class message extends Model {
+  class messages extends Model {
     /**
      * Helper method for defining associations.
      * This method is not a part of Sequelize lifecycle.
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      messages.belongsTo(models.users, {
+        as: "sender",
+        foreignKey: "from",
+      });
+      messages.belongsTo(models.users, {
+        as: "reciever",
+        foreignKey: "to",
+      });
     }
   }
-  message.init(
+  messages.init(
     {
       conversationId: DataTypes.INTEGER,
-      messages: DataTypes.ARRAY(DataTypes.STRING),
-      isBlocked: DataTypes.BOOLEAN,
+      to: DataTypes.INTEGER,
+      from: DataTypes.INTEGER,
+      message: DataTypes.STRING,
+      state: DataTypes.ENUM("unedited", "edited"),
     },
     {
       sequelize,
       modelName: "messages",
     }
   );
-  return message;
+  return messages;
 };
