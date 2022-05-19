@@ -15,8 +15,8 @@ module.exports = (sequelize, DataTypes) => {
   }
   conversation.init(
     {
-      senderId: DataTypes.INTEGER,
-      recieverId: DataTypes.INTEGER,
+      senderId: DataTypes.UUID,
+      recieverId: DataTypes.UUID,
       state: DataTypes.ENUM(
         "unfriend",
         "accepted",

@@ -7,7 +7,8 @@ import {
   sendFriendRequest,
   seeFriendRequest,
   friendRequestReject,
-  blockMessage
+  blockMessage,
+  unFriend,
 } from "../controller/friendRequestController";
 
 friendRequestRoutes.post("/sendRequest/:id", tokenVarify, sendFriendRequest);
@@ -18,5 +19,5 @@ friendRequestRoutes.patch(
   friendRequestAccept
 );
 friendRequestRoutes.patch("/reject/:id", tokenVarify, friendRequestReject);
-friendRequestRoutes.patch("/user/block/:id",tokenVarify,blockMessage )
-
+friendRequestRoutes.patch("/user/block/:id", tokenVarify, blockMessage);
+friendRequestRoutes.patch("/user/unFriend/:id", tokenVarify, unFriend);

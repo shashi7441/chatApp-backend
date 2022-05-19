@@ -20,9 +20,9 @@ module.exports = (sequelize, DataTypes) => {
   }
   messages.init(
     {
-      conversationId: DataTypes.INTEGER,
-      to: DataTypes.INTEGER,
-      from: DataTypes.INTEGER,
+      conversationId: DataTypes.UUID,
+      to: DataTypes.UUID,
+      from: DataTypes.UUID,
       message: DataTypes.STRING,
       state: DataTypes.ENUM("unedited", "edited"),
     },

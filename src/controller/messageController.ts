@@ -3,6 +3,7 @@ import sequelize, { Op, Sequelize } from "sequelize";
 import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "../services/error";
+import { v4 as uuid, validate } from "uuid";
 
 export let sendMessage = async (
   req: any,
@@ -12,10 +13,12 @@ export let sendMessage = async (
   try {
     const Op = sequelize.Op;
     const id = req.params.id;
+    const myId = uuid();
     const { message } = req.body;
     const numberId: any = id.replace(/[' "]+/g, "");
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 400));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
     }
     if (message.length == 0) {
       return res.json({
@@ -87,8 +90,15 @@ export let sendMessage = async (
           message: "you are not friend",
         });
       }
+      if (value === "unfriend") {
+        return res.json({
+          statusCode: 400,
+          message: "you are unfriend",
+        });
+      }
       if (value === "accepted") {
         await messages.create({
+          id: myId,
           to: cheacksender.dataValues.recieverId,
           from: cheacksender.dataValues.senderId,
           conversationId: numberId,
@@ -116,17 +126,26 @@ export let sendMessage = async (
           message: "you are not friend",
         });
       }
-      await messages.create({
-        to: cheackReciever.dataValues.senderId,
-        from: cheackReciever.dataValues.recieverId,
-        conversationId: numberId,
-        state: "unedited",
-        message: messageTrim,
-      });
-      return res.json({
-        statusCode: 200,
-        message: "message send successfully",
-      });
+      if (value === "unfriend") {
+        return res.json({
+          statusCode: 400,
+          message: "you are unfriend",
+        });
+      }
+      if (value === "accepted") {
+        await messages.create({
+          id: myId,
+          to: cheackReciever.dataValues.senderId,
+          from: cheackReciever.dataValues.recieverId,
+          conversationId: numberId,
+          state: "unedited",
+          message: messageTrim,
+        });
+        return res.json({
+          statusCode: 200,
+          message: "message send successfully",
+        });
+      }
     }
   } catch (e: any) {
     console.log("dddd", e);
@@ -144,8 +163,9 @@ export let seeMessages = async (
     const id = req.params.id;
     const Op = sequelize.Op;
     const numberId: any = id.replace(/[' "]+/g, "");
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 404));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
     }
     const messageData = await messages.findAll({
       where: {
@@ -198,8 +218,9 @@ export let deleteChats = async (
   try {
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 404));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
     }
     const messageData = await messages.findOne({
       where: {
@@ -289,8 +310,9 @@ export let editmessage = async (
   try {
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 404));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
     }
     let { message }: { message: string } = req.body;
     if (!message) {

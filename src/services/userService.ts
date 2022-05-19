@@ -82,7 +82,7 @@ export let userVerifiedEmail = async (req: Request, res: Response) => {
     let { email, otp } = req.body;
     let emailTrim = email.trim();
     let otpTrim = otp.trim();
-    let otpNumber = parseInt(otpTrim) 
+    let otpNumber = parseInt(otpTrim);
     const findData = await users.findOne({
       where: {
         email: emailTrim,
@@ -96,13 +96,21 @@ export let userVerifiedEmail = async (req: Request, res: Response) => {
     }
     const id = findData.dataValues.id;
     const finalResult = findData.dataValues.otp;
-
+    const otpExpTime = findData.dataValues.otpExpTime;
     if (finalResult != otpNumber) {
       return res.json({
         statusCode: 400,
         message: "otp are not match",
       });
     }
+
+    if (otpExpTime < Date.now()) {
+      return res.json({
+        statusCode: 400,
+        message: "your otp will be expire",
+      });
+    }
+
     const jwtToken = await jwt.sign({ id: id }, secretKey, {
       expiresIn: "24h",
     });
@@ -126,7 +134,7 @@ export let userVerifiedEmail = async (req: Request, res: Response) => {
       );
       return res.json({
         message: "Email verified successful",
-        success: true,
+        statusCode: 200,
         data: jwtToken,
       });
     }

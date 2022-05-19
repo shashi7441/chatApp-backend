@@ -4,19 +4,18 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import { ApiError } from "../services/error";
-import sequelize from "sequelize";
-import { html, createOtp } from "../services/otpMailTemplate";
+import sequelize, { Op } from "sequelize";
+import { html, createOtp, realOtp } from "../services/otpMailTemplate";
 import { sendMail } from "../services/userService";
+import { v4 as uuid } from "uuid";
 dotenv.config();
 
 export let signup = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const myId = uuid();
     const secretKey: any = process.env.SECRET_KEY;
-    let {
-      email,
-      otp,
-      password,
-    }: { email: string; otp: number; password: string } = req.body;
+    const otpExp = new Date(new Date().getTime() + 5 * 60000);
+    let { email, password }: { email: string; password: string } = req.body;
     const emailTrim = email.trim();
     let passwordTrim = password.trim();
     const salt: any = await bcrypt.genSalt(10);
@@ -45,12 +44,14 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
         fullName: fullNameTrim,
         email: emailTrim,
         password: hash,
+        id: myId,
       });
       const findCreateData = await users.findOne({
         where: { email: emailTrim },
       });
       const updateData = await users.update(
-        { otp: createOtp },
+        { otp: realOtp, otpExpTime: otpExp },
+
         {
           where: {
             email: emailTrim,
@@ -95,7 +96,7 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
       const verified = findData.dataValues.isVerified;
       const passwordMatch = await bcrypt.compare(passwordTrim, loginPassword);
       const updateData = await users.update(
-        { otp: createOtp },
+        { otp: realOtp, otpExpTime: otpExp },
         {
           where: {
             email: emailTrim,
@@ -109,6 +110,12 @@ export let signup = async (req: Request, res: Response, next: NextFunction) => {
       });
       const result: number = originalData.dataValues.otp;
       await sendMail(req, res, html);
+      const { fullName } = req.body;
+
+      if (fullName) {
+        return next(new ApiError("fullName not required", 400));
+      }
+
       if (!passwordMatch) {
         return next(new ApiError("Invalid credential", 400));
       }
@@ -149,14 +156,14 @@ export let searchFriend = async (
       const userData = await users.findAll(
         {
           where: {
+            id: {
+              [Op.ne]: [req.id],
+            },
+
             fullName: {
               [Op.iRegexp]: `${originalSearch}`,
             },
             isVerified: true,
-
-            id: {
-              [Op.ne]: [req.id],
-            },
           },
         },
         { attributes: ["email", "fullName", "id"] }
@@ -171,6 +178,11 @@ export let searchFriend = async (
       });
     } else {
       const userData = await users.findAll({
+        where: {
+          id: {
+            [Op.ne]: [req.id],
+          },
+        },
         attributes: ["email", "fullName", "id"],
       });
       return res.json({

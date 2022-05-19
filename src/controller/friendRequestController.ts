@@ -1,8 +1,10 @@
 const { conversation, users } = require("../../models/");
-import { Op } from "sequelize";
+import { Op, UUIDV4 } from "sequelize";
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "../services/error";
-
+import { v4 as uuid, validate } from "uuid";
+// import UUID, { isUuid } from "uuidv4";
+import { jobs_v4 } from "googleapis";
 // interface error {
 //   message: String;
 // }
@@ -13,13 +15,14 @@ export let sendFriendRequest = async (
   next: NextFunction
 ) => {
   try {
+    const myId = uuid();
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
 
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 400));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
     }
-
     const recieverData: any = await users.findOne({
       where: {
         id: numberId,
@@ -61,6 +64,7 @@ export let sendFriendRequest = async (
       const createData = await conversation.create({
         senderId: req.id,
         recieverId: numberId,
+        id: myId,
       });
       return res.json({
         statusCode: 201,
@@ -83,10 +87,11 @@ export let friendRequestAccept = async (
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
 
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 400));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
     }
-    if (req.id == parseInt(numberId)) {
+    if (req.id == numberId) {
       return next(new ApiError("can not accept request", 404));
     }
 
@@ -100,10 +105,11 @@ export let friendRequestAccept = async (
     }
     const cheackFriendRequest = await conversation.findOne({
       where: {
-        senderId: { [Op.or]: [req.id, parseInt(numberId)] },
-        recieverId: { [Op.or]: [req.id, parseInt(numberId)] },
+        senderId: { [Op.or]: [req.id, numberId] },
+        recieverId: { [Op.or]: [req.id, numberId] },
       },
     });
+
     if (!cheackFriendRequest) {
       return next(new ApiError("no conversation found", 400));
     }
@@ -111,6 +117,7 @@ export let friendRequestAccept = async (
       const recieverId = cheackFriendRequest.dataValues.recieverId;
       const match = req.id === recieverId;
       const value = cheackFriendRequest.dataValues.state;
+
       if (value === "pending" && match == false) {
         return next(new ApiError("sender can not accept request", 400));
       }
@@ -121,7 +128,7 @@ export let friendRequestAccept = async (
 
       if (value === "pending" && match == true) {
         console.log(req.id);
-        console.log(parseInt(numberId));
+        console.log(numberId);
 
         await conversation.update(
           { state: "accepted" },
@@ -151,13 +158,14 @@ export let friendRequestReject = async (
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
 
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 400));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
     }
 
     const recieverData: any = await users.findOne({
       where: {
-        id: parseInt(numberId),
+        id: numberId,
       },
     });
 
@@ -167,8 +175,8 @@ export let friendRequestReject = async (
 
     const cheackFriendRequest = await conversation.findOne({
       where: {
-        senderId: { [Op.or]: [req.id, parseInt(numberId)] },
-        recieverId: { [Op.or]: [req.id, parseInt(numberId)] },
+        senderId: { [Op.or]: [req.id, numberId] },
+        recieverId: { [Op.or]: [req.id, numberId] },
         state: "pending",
       },
     });
@@ -259,7 +267,7 @@ export let seeSenderRequest = async (
     });
 
     if (userData.length == 0) {
-      return next(new ApiError("no  friend  request is found", 404));
+      return next(new ApiError("no  friend  request is found", 204));
     }
 
     return res.json({
@@ -278,10 +286,15 @@ export let blockMessage = async (
   next: NextFunction
 ) => {
   try {
+    const myId = uuid();
     const id = req.params.id;
     const numberId: any = id.replace(/[' "]+/g, "");
-    if (Number.isNaN(parseInt(numberId)) === true) {
-      return next(new ApiError("id type is string", 400));
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return res.json({
+        statusCode: 400,
+        message: "please put valid id",
+      });
     }
     const conversationData = await conversation.findOne({
       where: {
@@ -297,8 +310,10 @@ export let blockMessage = async (
     });
     if (!conversationData) {
       const connversationBlock = await conversation.create({
+        id: myId,
         senderId: req.id,
         recieverId: numberId,
+
         state: "blocked",
       });
 
@@ -344,5 +359,63 @@ export let blockMessage = async (
       statusCode: 400,
       message: e.message,
     });
+  }
+};
+
+export let unFriend = async (req: any, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id;
+    const numberId: any = id.replace(/[' "]+/g, "");
+
+    const checkId = validate(numberId);
+    if (checkId === false) {
+      return next(new ApiError("please put valid id ", 400));
+    }
+
+    if (req.id == numberId) {
+      return next(new ApiError("can not unfriend ", 404));
+    }
+    const cheackFriend = await conversation.findOne({
+      where: {
+        id: numberId,
+        [Op.or]: [
+          {
+            senderId: req.id,
+          },
+          {
+            recieverId: req.id,
+          },
+        ],
+      },
+    });
+    if (!cheackFriend) {
+      return res.json({
+        statusCode: 404,
+        message: "you are not friend",
+      });
+    }
+    if (cheackFriend) {
+      const state = cheackFriend.dataValues.state;
+      if (state != "accepted") {
+        return res.json({
+          statusCode: 400,
+          message: "you are not friend so you can not unfriend",
+        });
+      }
+      if (state === "accepted") {
+        await conversation.update(
+          {
+            state: "unfriend",
+          },
+          {
+            where: {
+              id: numberId,
+            },
+          }
+        );
+      }
+    }
+  } catch (e: any) {
+    return next(new ApiError(e.message, 400));
   }
 };

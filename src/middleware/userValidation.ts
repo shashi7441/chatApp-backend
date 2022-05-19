@@ -47,6 +47,7 @@ export const userSignupValidation = (
         .trim()
         .required(),
       password: joi.string().min(6).max(50).required().trim(),
+      fullName:joi.string().min(3).max(20)
     });
     return JoiSchema.validate(user);
   };

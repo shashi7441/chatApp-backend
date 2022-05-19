@@ -26,6 +26,8 @@ module.exports = (sequelize, DataTypes) => {
   }
   users.init(
     {
+      // otpExpTime: DataTypes.DATE,
+      otpExpTime: DataTypes.DATE,
       isActive: DataTypes.BOOLEAN,
       email: DataTypes.STRING,
       fullName: DataTypes.STRING,
