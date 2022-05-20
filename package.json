@@ -30,8 +30,10 @@
     "passport-oauth2": "^1.6.1",
     "pg": "^8.7.3",
     "sequelize": "^6.19.0",
+    "socket.io": "^4.5.1",
     "ts-node-dev": "^1.1.8",
-    "uuidv4": "^6.2.13"
+    "uuidv4": "^6.2.13",
+    "websocket": "^1.0.34"
   },
   "devDependencies": {
     "sequelize-cli": "^6.4.1"

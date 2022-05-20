@@ -11,6 +11,10 @@ import { friendRequestRoutes } from "./router/friendRequestRouter";
 import { messageRoutes } from "./router/messageRouter";
 import { error } from "./services/error";
 import { pageNotFound } from "./services/userService";
+const { Server } = require("socket.io");
+require('../src/socketClient')
+
+
 app.use(express.json());
 app.use("/api/auth/user", userRoutes);
 app.use("/", googleRoutes);
@@ -30,9 +34,10 @@ app.get("/", (req: Request, res: Response) => {
   res.render("pages/index");
 });
 
-app.use("/*", pageNotFound);
 
+app.use("/*", pageNotFound);
 app.use(error);
+
 app.listen(port, async () => {
   await db.sequelize.authenticate({ logging: false }).then(() => {
     console.log("database connected successfully");

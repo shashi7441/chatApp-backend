@@ -3,6 +3,7 @@ export let googleRoutes = express.Router();
 import passport from "passport";
 const { users } = require("../../models/");
 import jwt from "jsonwebtoken";
+import { v4 as uuid, validate } from "uuid";
 import dotenv from "dotenv";
 dotenv.config();
 const secretKey: any = process.env.SECRET_KEY;
@@ -16,6 +17,7 @@ googleRoutes.get(
   "/google/callback",
   passport.authenticate("google", { failureRedirect: "/failed" }),
   async (req: any, res: any) => {
+    const myId = uuid();
     const value = req.user.email;
     const fullName = req.user._json.name;
 
@@ -27,6 +29,7 @@ googleRoutes.get(
     if (!findData) {
       const createData = await users.create({
         email: value,
+        id: myId,
         fullName: fullName,
         password: null,
       });
